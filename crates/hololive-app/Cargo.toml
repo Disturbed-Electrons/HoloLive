@@ -1,0 +1,27 @@
+[package]
+name = "hololive-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "HoloLive"
+path = "src/main.rs"
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+crossbeam-channel.workspace = true
+directories.workspace = true
+eframe.workspace = true
+hololive-core = { path = "../hololive-core" }
+png.workspace = true
+temscript-client = { path = "../temscript-client" }
+temscript-simulator = { path = "../temscript-simulator" }
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

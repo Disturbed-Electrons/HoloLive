@@ -1,0 +1,20 @@
+[package]
+name = "temscript-simulator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+flate2.workspace = true
+hololive-simulation = { path = "../hololive-simulation" }
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+temscript-client = { path = "../temscript-client" }
+thiserror.workspace = true
+tiny_http.workspace = true
+urlencoding.workspace = true
+
+[lints]
+workspace = true
