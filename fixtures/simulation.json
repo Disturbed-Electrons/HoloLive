@@ -1,0 +1,23 @@
+{
+  "simulation": {
+    "width": 2048,
+    "height": 2048,
+    "target_fps": 30.0,
+    "jitter_fraction": 0.075,
+    "counts": 62.5,
+    "sampling": 20.0,
+    "visibility": 1.0,
+    "fringe_angle_degrees": 30.0,
+    "poisson_scale": 0.8,
+    "scene": "Combined"
+  },
+  "wire_type": "UINT16",
+  "endianness": "LITTLE",
+  "exposure_seconds": 0.1,
+  "binning": 4,
+  "faults": {
+    "extra_latency_ms": 0,
+    "http_error_every": null,
+    "malformed_payload_every": null
+  }
+}
