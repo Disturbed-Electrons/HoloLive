@@ -9,7 +9,6 @@ use std::{
 
 use hololive_core::{Frame, FrameMeta};
 use temscript_client::TemscriptClient;
-use tracing::warn;
 
 use super::{
     AcquisitionCommand, FrameSample,
@@ -128,7 +127,7 @@ impl<T: FrameSample> AcquisitionWorker<T> {
                     if self.cancelled.load(Ordering::Acquire) {
                         break;
                     }
-                    warn!(%error, "acquisition failed");
+                    eprintln!("acquisition failed: {error}");
                     record_acquisition_failure(&self.status, error.to_string());
                     camera_ready = false;
                     self.retry_with_backoff(&mut backoff);

@@ -36,9 +36,7 @@ impl Default for DisplayRange {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct StageTimings {
     pub forward_fft_ms: f64,
-    pub sideband_ms: f64,
     pub inverse_fft_ms: f64,
-    pub extract_ms: f64,
     pub total_ms: f64,
 }
 

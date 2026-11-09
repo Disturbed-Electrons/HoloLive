@@ -31,11 +31,9 @@ pub fn convolve_horizontal(
     source: &[f64],
     destination: &mut [f64],
     width: usize,
-    height: usize,
+    _height: usize,
     kernel: &[f64],
 ) {
-    debug_assert_eq!(source.len(), width * height);
-    debug_assert_eq!(destination.len(), width * height);
     if kernel.is_empty() || width == 0 {
         destination.fill(0.0);
         return;
@@ -61,8 +59,6 @@ pub fn convolve_vertical(
     height: usize,
     kernel: &[f64],
 ) {
-    debug_assert_eq!(source.len(), width * height);
-    debug_assert_eq!(destination.len(), width * height);
     if kernel.is_empty() || width == 0 || height == 0 {
         destination.fill(0.0);
         return;

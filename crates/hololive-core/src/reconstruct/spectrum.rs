@@ -25,7 +25,6 @@ impl<T: Real> ReconstructionEngine<T> {
 }
 
 fn write_ln_norm_fftshifted_row<T: Real>(source: &[Complex<T>], row: &mut [f32]) {
-    debug_assert_eq!(source.len(), row.len());
     let (first_segment, shift) = fftshift_segments(source.len());
     write_ln_norm(&source[shift..], &mut row[..first_segment]);
     write_ln_norm(&source[..shift], &mut row[first_segment..]);

@@ -80,16 +80,14 @@ impl<T: Real> ReconstructionEngine<T> {
             settings.output_height,
             FftDirection::Inverse,
         )?;
-        let (crop, sideband_ms) = self.locate_sideband_and_crop(frame, settings, reference)?;
+        let crop = self.locate_sideband_and_crop(frame, settings, reference)?;
         self.fill_inverse_input_from_crop(frame, settings, &crop)?;
         let (inverse_scale, inverse_fft_ms) = self.run_inverse_fft(settings)?;
-        let extract_ms = self.extract_wave_values(settings, reference, inverse_scale, output)?;
+        self.extract_wave_values(settings, reference, inverse_scale, output)?;
 
         output.timings = StageTimings {
             forward_fft_ms,
-            sideband_ms,
             inverse_fft_ms,
-            extract_ms,
             total_ms: milliseconds(total_start),
         };
         self.fill_output_metrics(frame, settings, &crop, output);
@@ -120,8 +118,7 @@ impl<T: Real> ReconstructionEngine<T> {
         frame: &Frame<T>,
         settings: &ReconstructionSettings,
         reference: Option<&ReferenceWave<T>>,
-    ) -> Result<(SidebandCrop, f64), CoreError> {
-        let start = Instant::now();
+    ) -> Result<SidebandCrop, CoreError> {
         let mut sideband = if let Some(sideband) = settings.locked_sideband {
             if sideband.x >= frame.width() || sideband.y >= frame.height() {
                 return Err(CoreError::SidebandOutOfBounds);
@@ -159,7 +156,7 @@ impl<T: Real> ReconstructionEngine<T> {
         }) {
             return Err(CoreError::IncompatibleReference);
         }
-        Ok((crop, milliseconds(start)))
+        Ok(crop)
     }
 
     fn fill_inverse_input_from_crop(
@@ -241,8 +238,7 @@ impl<T: Real> ReconstructionEngine<T> {
         reference: Option<&ReferenceWave<T>>,
         inverse_scale: T,
         output: &mut Reconstruction<T>,
-    ) -> Result<f64, CoreError> {
-        let start = Instant::now();
+    ) -> Result<(), CoreError> {
         output.values.resize(self.inverse.samples.len(), T::zero());
         output.unwrapped_range = None;
         let wave_at = |index: usize| {
@@ -300,7 +296,7 @@ impl<T: Real> ReconstructionEngine<T> {
                     });
             }
         }
-        Ok(milliseconds(start))
+        Ok(())
     }
 
     fn fill_output_metrics(

@@ -4,9 +4,6 @@ use clap::{Parser, Subcommand, ValueEnum};
 use hololive_core::Precision;
 use temscript_client::TemscriptClient;
 use temscript_simulator::{SIMULATED_CAMERA, SimulatorConfig, SimulatorHandle};
-use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::prelude::*;
 
 use crate::{AppConfig, ui::run_gui};
 
@@ -82,23 +79,6 @@ pub enum SimulatorCommand {
     },
 }
 
-pub fn init_tracing(log_directory: impl AsRef<Path>) -> WorkerGuard {
-    let file = tracing_appender::rolling::daily(log_directory, "hololive.log");
-    let (file_writer, guard) = tracing_appender::non_blocking(file);
-    tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new("hololive_app=info,hololive_core=info,temscript_simulator=info")
-        }))
-        .with(tracing_subscriber::fmt::layer().compact())
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_ansi(false)
-                .with_writer(file_writer),
-        )
-        .init();
-    guard
-}
-
 pub fn run(arguments: Arguments) -> ExitCode {
     if let Some(Command::Simulator { command }) = arguments.command {
         return run_simulator(command);
@@ -127,7 +107,6 @@ pub fn run(arguments: Arguments) -> ExitCode {
 }
 
 fn fail(error: &str) -> ExitCode {
-    tracing::error!("{error}");
     eprintln!("{error}");
     ExitCode::FAILURE
 }
@@ -146,7 +125,9 @@ fn build_simulated_client(
     config: &mut AppConfig,
 ) -> Result<(TemscriptClient, Option<SimulatorHandle>), String> {
     config.camera = SIMULATED_CAMERA.into();
-    let simulator_config = load_logged_fixture()?;
+    let (path, simulator_config) =
+        SimulatorConfig::load_fixture().map_err(|error| error.to_string())?;
+    report_simulation(path.as_deref(), &simulator_config);
     config.exposure_seconds = simulator_config.exposure_seconds;
     config.binning = simulator_config.binning;
     let simulator = SimulatorHandle::start("127.0.0.1:0", simulator_config)
@@ -189,9 +170,9 @@ pub(crate) fn run_simulator(command: SimulatorCommand) -> ExitCode {
                     "warning: the simulator has no authentication and is exposed beyond loopback"
                 );
             }
-            let mut config = match load_logged_fixture() {
-                Ok(config) => config,
-                Err(error) => return fail(&error),
+            let (path, mut config) = match SimulatorConfig::load_fixture() {
+                Ok(fixture) => fixture,
+                Err(error) => return fail(&error.to_string()),
             };
             if let Some(width) = width {
                 config.simulation.width = width;
@@ -205,6 +186,7 @@ pub(crate) fn run_simulator(command: SimulatorCommand) -> ExitCode {
             if let Some(jitter) = jitter {
                 config.simulation.jitter_fraction = jitter;
             }
+            report_simulation(path.as_deref(), &config);
             let bind = if host.contains(':') && !host.starts_with('[') {
                 format!("[{host}]:{port}")
             } else {
@@ -224,24 +206,15 @@ pub(crate) fn run_simulator(command: SimulatorCommand) -> ExitCode {
     }
 }
 
-fn load_logged_fixture() -> Result<SimulatorConfig, String> {
-    let (path, config) = SimulatorConfig::load_fixture().map_err(|error| error.to_string())?;
-    tracing::info!(
-        path = path.as_ref().map(|path| path.display().to_string()),
-        width = config.simulation.width,
-        height = config.simulation.height,
-        target_fps = config.simulation.target_fps,
-        scene = ?config.simulation.scene,
-        "loaded simulation fixture"
-    );
+fn report_simulation(path: Option<&Path>, config: &SimulatorConfig) {
     eprintln!(
-        "simulation: {} ({}×{}, {:.0} FPS)",
-        simulation_source(path.as_deref()),
+        "simulation: {} ({}×{}, {:.0} FPS, scene {:?})",
+        simulation_source(path),
         config.simulation.width,
         config.simulation.height,
-        config.simulation.target_fps
+        config.simulation.target_fps,
+        config.simulation.scene
     );
-    Ok(config)
 }
 
 fn simulation_source(path: Option<&Path>) -> String {

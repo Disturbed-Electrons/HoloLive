@@ -20,7 +20,7 @@ Estimation of the fringe contrast in Fourier space is defined as twice the ampli
 
 ## Architecture and Performance
 
-Acquisition, reconstruction, and the UI run on separate OS threads. Simulated mode adds a dedicated HTTP server thread; PNG export and file logging use helper threads. Actual throughput depends on detector readout, HTTP transfer, image size, precision, and whether phase unwrapping is enabled.
+Acquisition, reconstruction, and the UI run on separate OS threads. Simulated mode adds a dedicated HTTP server thread; PNG export uses a helper thread. Actual throughput depends on detector readout, HTTP transfer, image size, precision, and whether phase unwrapping is enabled.
 
 ```mermaid
 flowchart LR

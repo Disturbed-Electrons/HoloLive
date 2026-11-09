@@ -7,5 +7,5 @@ pub(crate) mod levels;
 pub(crate) mod pipeline;
 pub(crate) mod ui;
 
-pub use cli::{Arguments, init_tracing, run};
+pub use cli::{Arguments, run};
 pub(crate) use config::AppConfig;

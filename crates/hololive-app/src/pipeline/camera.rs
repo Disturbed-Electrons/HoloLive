@@ -5,7 +5,6 @@ use std::{
 };
 
 use temscript_client::{CameraParameters, TemscriptClient};
-use tracing::{debug, info};
 
 use crate::config::{closest_binning, supported_binnings};
 
@@ -50,13 +49,15 @@ fn reset_armed_camera() {
     else {
         return;
     };
-    let _ = configure_camera(
+    if let Err(error) = configure_camera(
         &client,
         &camera,
         RESET_EXPOSURE_SECONDS,
         RESET_BINNING,
         Some(Duration::from_secs(1)),
-    );
+    ) {
+        eprintln!("camera reset failed for {camera:?}: {error}");
+    }
 }
 
 pub(crate) fn configure_camera(
@@ -88,22 +89,14 @@ pub(crate) fn reset_camera(
     else {
         return;
     };
-    let result = configure_camera(
+    if let Err(error) = configure_camera(
         client,
         &camera,
         RESET_EXPOSURE_SECONDS,
         RESET_BINNING,
         timeout,
-    );
-    if let Err(error) = result {
-        debug!(%error, camera, "camera reset failed");
-    } else {
-        info!(
-            camera,
-            exposure_seconds = RESET_EXPOSURE_SECONDS,
-            binning = RESET_BINNING,
-            "reset camera settings"
-        );
+    ) {
+        eprintln!("camera reset failed for {camera:?}: {error}");
     }
 }
 
