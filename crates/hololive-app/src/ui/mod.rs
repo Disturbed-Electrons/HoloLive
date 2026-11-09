@@ -16,4 +16,4 @@ pub(crate) use actions::Action;
 pub(crate) use app::HoloLiveApp;
 pub(crate) use app::run_gui;
 pub(crate) use dimensions::*;
-pub(crate) use notice::{Notice, NoticeKind};
+pub(crate) use notice::{Notice, NoticeLevel};

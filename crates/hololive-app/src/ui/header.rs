@@ -54,7 +54,7 @@ pub(crate) fn header<T: FrameSample>(app: &mut HoloLiveApp<T>, root: &mut egui::
                     let notice_width =
                         (ui.available_width() - HEADER_RIGHT_BUTTON_GROUP_WIDTH).max(0.0);
                     if notice_width > 0.0 {
-                        let color = app.notice.kind.color();
+                        let color = app.notice.level.color();
                         ui.add_sized(
                             [notice_width, 22.0],
                             egui::Label::new(RichText::new(notice).color(color)).truncate(),

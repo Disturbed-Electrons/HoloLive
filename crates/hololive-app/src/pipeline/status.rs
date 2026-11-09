@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{collections::VecDeque, sync::Mutex};
 
 use hololive_core::{CoreError, Sideband};
 
@@ -15,6 +15,25 @@ pub(crate) enum PipelineEvent {
     ReconstructionFailed(CoreError),
     CameraConfigureFailed(String),
     SaveFinished(Result<String, String>),
+    SaveUnavailable,
+}
+
+#[derive(Default)]
+pub(crate) struct PipelineEvents {
+    pending: Mutex<VecDeque<PipelineEvent>>,
+}
+
+impl PipelineEvents {
+    pub(crate) fn publish(&self, event: PipelineEvent) {
+        let mut pending = self.pending.lock().expect("pipeline-event lock poisoned");
+        if !pending.contains(&event) {
+            pending.push_back(event);
+        }
+    }
+
+    pub(crate) fn take(&self) -> VecDeque<PipelineEvent> {
+        std::mem::take(&mut *self.pending.lock().expect("pipeline-event lock poisoned"))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

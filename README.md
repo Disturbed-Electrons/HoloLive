@@ -42,7 +42,7 @@ flowchart LR
 
 Detector frames, reconstruction settings, and live results use single-value `LatestSlot` storage. New values replace pending older ones, keeping the display responsive without building a frame backlog. An in-flight reconstruction finishes and publishes its result; the newest pending frame is processed next. Both overwritten and consumed detector buffers can be recycled; replaced display buffers are reused.
 
-Reconstruction control changes immediately recalculate the retained frame, including while paused. The forward FFT is cached by detector sequence and dimensions, so crop, Tukey, mask, lock, and extraction changes reuse its spectrum. Switching the displayed view only re-packs the retained data. The previous image stays visible for up to 250 ms while waiting for the new view; reconstruction failures are shown immediately. Pause stops acquisition and consumption of new frames; work already in progress may still finish.
+Reconstruction control changes immediately recalculate the retained frame, including while paused. The forward FFT is cached by detector sequence and dimensions, so crop, Tukey, mask, lock, and extraction changes reuse its spectrum. Switching the displayed view only re-packs the retained data. The previous image stays visible for up to 250 ms while waiting for the new view. Pause stops acquisition and consumption of new frames; work already in progress may still finish.
 
 Reference capture reconstructs the retained frame, stores its uncorrected complex wave, locks the sideband and crop, and immediately reconstructs with that reference. An incompatible reference is cleared by the reconstruction worker before retrying. Hologram and spectrum views continue updating after a reconstruction failure, with unavailable metrics and overlays omitted. PNG export copies the reconstructed values to a helper thread, which is joined during shutdown.
 
@@ -152,9 +152,7 @@ Various keyboard shortcuts can be used to adjust parameters during live reconstr
 
 Changes to reconstruction controls immediately recalculate the retained current detector frame. **Divisor** (Reconstruction panel) scales the output FFT size relative to the detector. Switching the live view (hologram / spectrum / reconstruction) re-packs that frame without another FFT. If a new readout arrives during a transform, the bounded in-flight transform finishes and publishes while only the newest pending detector frame is retained for the next iteration.
 
-Generated data is written to `exports/`. PNG finalization and buffered write errors are reported, and shutdown waits for a pending export to finish. Successful saves are confirmed temporarily in the header. `./build.sh clean` removes both Cargo build artifacts and generated exports.
-
-Although HoloLive should in principle work with any detector supported by `temscript`, live validation and operator sign-off on the microscope are required before relying on it for instrument work.
+Generated data is written to `exports/`. PNG finalization and buffered write errors are reported, and shutdown waits for a pending export to finish. Header notices last up to four seconds: errors interrupt warnings and information, distinct errors queue, and duplicate errors coalesce. Warnings interrupt information; lower-priority notices are discarded. Successful saves are informational. `./build.sh clean` removes both Cargo build artifacts and generated exports.
 
 ## License
 

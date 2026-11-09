@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    FrameSample, LiveResult, LiveView, PipelineEvent, ReconstructionCommand, latest::LatestSlot,
-    status::RuntimeStatus,
+    FrameSample, LiveResult, LiveView, PipelineEvent, PipelineEvents, ReconstructionCommand,
+    latest::LatestSlot, status::RuntimeStatus,
 };
 
 pub(crate) struct ReconstructionWorker<T> {
@@ -30,7 +30,7 @@ pub(crate) struct ReconstructionWorker<T> {
     pub settings: Arc<LatestSlot<ReconstructionSettings>>,
     pub commands: Receiver<ReconstructionCommand>,
     pub recycle: Receiver<LiveResult>,
-    pub events: Arc<LatestSlot<PipelineEvent>>,
+    pub events: Arc<PipelineEvents>,
     pub status: Arc<Mutex<RuntimeStatus>>,
     pub paused: Arc<AtomicBool>,
     pub cancelled: Arc<AtomicBool>,
@@ -175,8 +175,7 @@ pub(crate) fn spawn_reconstruction<T: FrameSample>(
                             clear_reference(&mut reference, &status);
                             work = Work::Reconstruct;
                         }
-                        let _superseded =
-                            events.publish(PipelineEvent::ReconstructionFailed(error));
+                        events.publish(PipelineEvent::ReconstructionFailed(error));
                         repaint();
                     }
                 }
@@ -327,13 +326,11 @@ fn save_wave<T: Real>(
     output: &Reconstruction<T>,
     have_wave: bool,
     worker: &mut Option<JoinHandle<()>>,
-    events: &Arc<LatestSlot<PipelineEvent>>,
+    events: &Arc<PipelineEvents>,
     repaint: &Arc<dyn Fn() + Send + Sync>,
 ) {
     if !have_wave {
-        let _superseded = events.publish(PipelineEvent::SaveFinished(Err(
-            "Nothing To Save Yet".into()
-        )));
+        events.publish(PipelineEvent::SaveUnavailable);
         repaint();
         return;
     }
@@ -356,7 +353,7 @@ fn save_wave<T: Real>(
                 let result = export::save(&values, width, height, display_mode)
                     .map(|path| format!("Saved {}", path.display()))
                     .map_err(|error| error.to_string());
-                let _superseded = events.publish(PipelineEvent::SaveFinished(result));
+                events.publish(PipelineEvent::SaveFinished(result));
                 repaint();
             })
             .expect("failed to start export thread"),

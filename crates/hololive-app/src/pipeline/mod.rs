@@ -6,6 +6,7 @@ mod reconstruction;
 mod status;
 
 use std::{
+    collections::VecDeque,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -19,7 +20,7 @@ use temscript_client::TemscriptClient;
 
 pub(crate) use live::{AcquisitionCommand, LiveView};
 pub use live::{CameraSettings, FrameSample, LiveResult, ReconstructionCommand};
-pub(crate) use status::{ConnectionState, PipelineEvent, RuntimeStatus};
+pub(crate) use status::{ConnectionState, PipelineEvent, PipelineEvents, RuntimeStatus};
 
 use acquisition::{AcquisitionWorker, spawn_acquisition};
 use camera::{arm_panic_reset, disarm_panic_reset, install_panic_reset_hook, reset_camera};
@@ -33,7 +34,7 @@ pub struct Pipeline<T> {
     acquisition_commands: Arc<LatestSlot<AcquisitionCommand>>,
     reconstruction_commands: Sender<ReconstructionCommand>,
     reconstruction_settings: Arc<LatestSlot<ReconstructionSettings>>,
-    events: Arc<LatestSlot<PipelineEvent>>,
+    events: Arc<PipelineEvents>,
     status: Arc<Mutex<RuntimeStatus>>,
     paused: Arc<AtomicBool>,
     cancelled: Arc<AtomicBool>,
@@ -53,7 +54,7 @@ impl<T: FrameSample> Pipeline<T> {
         let frames = Arc::new(LatestSlot::new());
         let recycled_pixels = Arc::new(LatestSlot::new());
         let results = Arc::new(LatestSlot::new());
-        let events = Arc::new(LatestSlot::new());
+        let events = Arc::new(PipelineEvents::default());
         let status = Arc::new(Mutex::new(RuntimeStatus::new(camera.camera.clone())));
         let paused = Arc::new(AtomicBool::new(false));
         let cancelled = Arc::new(AtomicBool::new(false));
@@ -119,7 +120,7 @@ impl<T> Pipeline<T> {
         self.status.lock().expect("status lock poisoned").clone()
     }
 
-    pub(crate) fn take_event(&self) -> Option<PipelineEvent> {
+    pub(crate) fn take_events(&self) -> VecDeque<PipelineEvent> {
         self.events.take()
     }
 

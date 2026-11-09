@@ -15,7 +15,8 @@ use super::{
     camera::{configure_camera, initialize_camera},
     latest::LatestSlot,
     status::{
-        ConnectionState, PipelineEvent, RuntimeStatus, record_acquisition_failure, set_error,
+        ConnectionState, PipelineEvent, PipelineEvents, RuntimeStatus, record_acquisition_failure,
+        set_error,
     },
 };
 
@@ -27,7 +28,7 @@ pub(crate) struct AcquisitionWorker<T> {
     pub frames: Arc<LatestSlot<Frame<T>>>,
     pub recycled_pixels: Arc<LatestSlot<Vec<T>>>,
     pub commands: Arc<LatestSlot<AcquisitionCommand>>,
-    pub events: Arc<LatestSlot<PipelineEvent>>,
+    pub events: Arc<PipelineEvents>,
     pub status: Arc<Mutex<RuntimeStatus>>,
     pub paused: Arc<AtomicBool>,
     pub cancelled: Arc<AtomicBool>,
@@ -166,8 +167,7 @@ impl<T: FrameSample> AcquisitionWorker<T> {
         ) {
             Ok(()) => true,
             Err(error) => {
-                let _superseded = self
-                    .events
+                self.events
                     .publish(PipelineEvent::CameraConfigureFailed(error.to_string()));
                 false
             }

@@ -6,7 +6,7 @@ use eframe::egui;
 
 use crate::{
     pipeline::{AcquisitionCommand, FrameSample},
-    ui::{CONTROL_PANEL_WIDTH, HoloLiveApp, NoticeKind},
+    ui::{CONTROL_PANEL_WIDTH, HoloLiveApp, NoticeLevel},
 };
 
 pub(crate) fn controls<T: FrameSample>(app: &mut HoloLiveApp<T>, root: &mut egui::Ui) {
@@ -51,7 +51,7 @@ pub(crate) fn controls<T: FrameSample>(app: &mut HoloLiveApp<T>, root: &mut egui
             } else {
                 "Re-sent Exposure After Binning Change"
             };
-            app.notice.show(NoticeKind::Camera, message);
+            app.notice.show(NoticeLevel::Info, message);
         }
     }
     if reconstruction_changed {

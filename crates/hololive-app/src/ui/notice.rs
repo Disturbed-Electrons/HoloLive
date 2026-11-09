@@ -1,35 +1,60 @@
-use std::time::{Duration, Instant};
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 use eframe::egui::Color32;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) enum NoticeKind {
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum NoticeLevel {
     #[default]
-    Status,
-    Camera,
+    Info,
+    Warning,
+    Error,
 }
 
-impl NoticeKind {
+impl NoticeLevel {
     pub(crate) fn color(self) -> Color32 {
         match self {
-            Self::Status => Color32::from_rgb(245, 190, 90),
-            Self::Camera => Color32::from_rgb(110, 205, 195),
+            Self::Info => Color32::from_rgb(110, 205, 195),
+            Self::Warning => Color32::from_rgb(245, 190, 90),
+            Self::Error => Color32::from_rgb(235, 80, 90),
         }
     }
 }
 
-/// Header toast. One message at a time; newer notices replace older ones.
+/// Header toast. Errors queue; lower-priority messages never interrupt them.
 #[derive(Default)]
 pub(crate) struct Notice {
     pub message: Option<String>,
-    pub kind: NoticeKind,
+    pub level: NoticeLevel,
     deadline: Option<Instant>,
+    pending_errors: VecDeque<String>,
 }
 
 impl Notice {
-    pub(crate) fn show(&mut self, kind: NoticeKind, message: impl Into<String>) {
-        self.message = Some(message.into());
-        self.kind = kind;
+    pub(crate) fn show(&mut self, level: NoticeLevel, message: impl Into<String>) {
+        self.expire();
+        let message = message.into();
+        if self.message.is_some() {
+            if level < self.level {
+                return;
+            }
+            if level == NoticeLevel::Error && self.level == NoticeLevel::Error {
+                if self.message.as_ref() != Some(&message)
+                    && !self.pending_errors.contains(&message)
+                {
+                    self.pending_errors.push_back(message);
+                }
+                return;
+            }
+        }
+        self.display(level, message);
+    }
+
+    fn display(&mut self, level: NoticeLevel, message: String) {
+        self.message = Some(message);
+        self.level = level;
         self.deadline = Some(Instant::now() + Duration::from_secs(4));
     }
 
@@ -40,6 +65,9 @@ impl Notice {
         {
             self.message = None;
             self.deadline = None;
+            if let Some(message) = self.pending_errors.pop_front() {
+                self.display(NoticeLevel::Error, message);
+            }
         }
     }
 }

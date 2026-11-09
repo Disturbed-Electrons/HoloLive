@@ -17,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    AGE_REFRESH_INTERVAL, LiveView, Notice, NoticeKind, controls, footer, header, shortcuts,
+    AGE_REFRESH_INTERVAL, LiveView, Notice, NoticeLevel, controls, footer, header, shortcuts,
     texture, viewport, window,
 };
 
@@ -129,13 +129,13 @@ impl<T: FrameSample> HoloLiveApp<T> {
             }
             if now_unwrapped && !was_unwrapped {
                 self.notice.show(
-                    NoticeKind::Status,
+                    NoticeLevel::Info,
                     "Phase Unwrapping Using Arevalillo–Herráez (2002)",
                 );
             }
             self.live.mark_dirty();
         }
-        if let Some(event) = self.pipeline.take_event() {
+        for event in self.pipeline.take_events() {
             self.apply_pipeline_event(event);
         }
         if let Some(result) = self.current_reconstruction() {
@@ -162,7 +162,7 @@ impl<T: FrameSample> HoloLiveApp<T> {
                 self.config.crop.set_manual(capture.crop_radius);
                 self.config.reconstruction.locked_sideband = Some(capture.sideband);
                 self.notice
-                    .show(NoticeKind::Status, "Reference Captured; Sideband Locked");
+                    .show(NoticeLevel::Info, "Reference Captured; Sideband Locked");
             }
         }
         if previous_size.0 != 0 && previous_size != frame_size {
@@ -178,7 +178,7 @@ impl<T: FrameSample> HoloLiveApp<T> {
         let settings = self.config.reconstruction_settings();
         if let Err(error) = settings.validate() {
             self.notice
-                .show(NoticeKind::Status, format!("Invalid Settings: {error}"));
+                .show(NoticeLevel::Error, format!("Invalid Settings: {error}"));
             return;
         }
         self.pipeline.set_reconstruction_settings(settings);
@@ -206,11 +206,11 @@ impl<T: FrameSample> HoloLiveApp<T> {
     pub(crate) fn toggle_sideband_lock(&mut self) -> bool {
         if self.config.reconstruction.locked_sideband.is_some() {
             self.unlock_sideband();
-            self.notice.show(NoticeKind::Status, "Sideband Unlocked");
+            self.notice.show(NoticeLevel::Info, "Sideband Unlocked");
             true
         } else if self.current_reconstruction().is_some() {
             self.lock_current_sideband();
-            self.notice.show(NoticeKind::Status, "Sideband Locked");
+            self.notice.show(NoticeLevel::Info, "Sideband Locked");
             true
         } else {
             false
@@ -257,7 +257,7 @@ impl<T: FrameSample> HoloLiveApp<T> {
     fn capture_reference(&mut self) {
         if self.current_reconstruction().is_none() {
             self.notice.show(
-                NoticeKind::Status,
+                NoticeLevel::Warning,
                 "No Reconstruction Available For Reference Capture",
             );
             return;
@@ -269,7 +269,7 @@ impl<T: FrameSample> HoloLiveApp<T> {
     pub(crate) fn clear_reference(&mut self) {
         self.pipeline
             .reconstruction(ReconstructionCommand::ClearReference);
-        self.notice.show(NoticeKind::Status, "Reference Cleared");
+        self.notice.show(NoticeLevel::Info, "Reference Cleared");
     }
 
     pub(crate) fn toggle_reference(&mut self) {
@@ -282,11 +282,12 @@ impl<T: FrameSample> HoloLiveApp<T> {
 
     pub(crate) fn save_current(&mut self) {
         if self.current_reconstruction().is_none() {
-            self.notice.show(NoticeKind::Status, "Nothing To Save Yet");
+            self.notice
+                .show(NoticeLevel::Warning, "Nothing To Save Yet");
             return;
         }
         self.pipeline.reconstruction(ReconstructionCommand::Save);
-        self.notice.show(NoticeKind::Status, "Saving PNG…");
+        self.notice.show(NoticeLevel::Info, "Saving PNG…");
     }
 
     pub(crate) fn current_reconstruction(&self) -> Option<hololive_core::ReconstructionInfo> {
@@ -299,17 +300,21 @@ impl<T: FrameSample> HoloLiveApp<T> {
         match event {
             PipelineEvent::ReconstructionFailed(error) => {
                 self.notice
-                    .show(NoticeKind::Status, format!("Reconstruction: {error}"));
+                    .show(NoticeLevel::Error, format!("Reconstruction: {error}"));
             }
             PipelineEvent::CameraConfigureFailed(error) => {
-                self.notice.show(NoticeKind::Camera, error);
+                self.notice.show(NoticeLevel::Error, error);
             }
             PipelineEvent::SaveFinished(Ok(message)) => {
-                self.notice.show(NoticeKind::Status, message);
+                self.notice.show(NoticeLevel::Info, message);
             }
             PipelineEvent::SaveFinished(Err(error)) => {
                 self.notice
-                    .show(NoticeKind::Status, format!("Save Failed: {error}"));
+                    .show(NoticeLevel::Error, format!("Save Failed: {error}"));
+            }
+            PipelineEvent::SaveUnavailable => {
+                self.notice
+                    .show(NoticeLevel::Warning, "Nothing To Save Yet");
             }
         }
     }
