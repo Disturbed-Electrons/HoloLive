@@ -119,7 +119,7 @@ impl<T: Real> ReconstructionEngine<T> {
         settings: &ReconstructionSettings,
         reference: Option<&ReferenceWave<T>>,
     ) -> Result<SidebandCrop, CoreError> {
-        let mut sideband = if let Some(sideband) = settings.locked_sideband {
+        let sideband = if let Some(sideband) = settings.locked_sideband {
             if sideband.x >= frame.width() || sideband.y >= frame.height() {
                 return Err(CoreError::SidebandOutOfBounds);
             }
@@ -146,9 +146,6 @@ impl<T: Real> ReconstructionEngine<T> {
             .max(1);
         let fit = sideband.max_crop_radius(frame.width(), frame.height());
         let radius = requested.min(fit).min(max_image_radius);
-        if settings.crop_radius.is_some() && settings.locked_sideband.is_none() && fit < requested {
-            sideband = sideband.clamp_to_crop(frame.width(), frame.height(), radius);
-        }
         let crop = SidebandCrop::new(sideband, radius, frame.width(), frame.height(), settings)?;
         if reference.is_some_and(|reference| {
             reference.settings != crop.wave
