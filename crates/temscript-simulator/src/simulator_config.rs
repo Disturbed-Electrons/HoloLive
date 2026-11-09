@@ -86,9 +86,6 @@ impl SimulatorConfig {
     }
 
     pub(crate) fn validate(&self) -> Result<(), SimulatorError> {
-        self.simulation
-            .validate()
-            .map_err(|error| SimulatorError::validation(error.to_string()))?;
         validate_binning(self, self.binning)?;
         validate_timing(self)?;
         if !self.exposure_seconds.is_finite() || self.exposure_seconds < 0.0 {
@@ -148,9 +145,11 @@ fn validate_binning(config: &SimulatorConfig, binning: u32) -> Result<(), Simula
             "binning must be supported and divide both detector dimensions",
         ));
     }
-    let output_pixels = (config.simulation.width / binning as usize)
-        * (config.simulation.height / binning as usize);
-    if output_pixels > MAX_SIMULATED_PIXELS {
+    let binned = config
+        .simulation
+        .for_binning(binning)
+        .map_err(|error| SimulatorError::validation(error.to_string()))?;
+    if binned.width * binned.height > MAX_SIMULATED_PIXELS {
         return Err(SimulatorError::validation(
             "binned simulator output exceeds 2048 × 2048 pixels",
         ));
