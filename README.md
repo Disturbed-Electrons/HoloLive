@@ -48,7 +48,7 @@ Reference capture reconstructs the retained frame, stores its uncorrected comple
 
 ### Reconstruction
 
-FFT plans, scratch pools, Tukey windows, and large intermediate buffers are reused. Spectra stay in native FFT order: centered crop and display coordinates are mapped into the buffer without constructing a full-array `fftshift` copy.
+FFT plans, scratch pools, Tukey windows, crop index buffers, and large intermediate buffers are reused. Spectra stay in native FFT order: centered crop and display coordinates are mapped into the buffer without constructing a full-array `fftshift` copy.
 
 A two-dimensional FFT uses parallel row transforms, a cache-tiled transpose with 32×32 tiles, and a second row pass for the columns. Scratch storage is shared across successive transforms through reusable work blocks.
 

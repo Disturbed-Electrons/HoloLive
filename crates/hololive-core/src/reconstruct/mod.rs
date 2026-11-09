@@ -38,6 +38,8 @@ pub struct ReconstructionEngine<T: Real> {
     unwrap: unwrap::UnwrapWorkspace<T>,
     window_key: Option<(usize, u32)>,
     window: Vec<T>,
+    source_xs: Vec<usize>,
+    dest_xs: Vec<usize>,
     latest_wave: Option<(WaveSettings, T)>,
     /// Detector sequence and size of [`Self::forward`] after a successful FFT.
     /// Crop, Tukey, mask, and lock changes reuse that spectrum.
@@ -52,6 +54,8 @@ impl<T: Real> Default for ReconstructionEngine<T> {
             unwrap: unwrap::UnwrapWorkspace::default(),
             window_key: None,
             window: Vec::new(),
+            source_xs: Vec::new(),
+            dest_xs: Vec::new(),
             latest_wave: None,
             forward_spectrum: None,
         }
@@ -169,12 +173,16 @@ impl<T: Real> ReconstructionEngine<T> {
         let side = crop.side();
         let pad_x = (settings.output_width - side) / 2;
         let pad_y = (settings.output_height - side) / 2;
-        let source_xs: Vec<_> = (0..side)
-            .map(|crop_x| shifted_to_unshifted(crop.origin_x + crop_x, frame.width()))
-            .collect();
-        let dest_xs: Vec<_> = (0..side)
-            .map(|crop_x| shifted_to_unshifted(pad_x + crop_x, settings.output_width))
-            .collect();
+        self.source_xs.clear();
+        self.source_xs.extend(
+            (0..side).map(|crop_x| shifted_to_unshifted(crop.origin_x + crop_x, frame.width())),
+        );
+        self.dest_xs.clear();
+        self.dest_xs.extend(
+            (0..side).map(|crop_x| shifted_to_unshifted(pad_x + crop_x, settings.output_width)),
+        );
+        let source_xs = &self.source_xs;
+        let dest_xs = &self.dest_xs;
         let input_width = frame.width();
         let output_width = settings.output_width;
         let tukey = !self.window.is_empty();
