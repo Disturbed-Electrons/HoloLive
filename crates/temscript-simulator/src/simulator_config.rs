@@ -11,7 +11,7 @@ use temscript_client::{Endianness, ScalarType};
 use crate::error::SimulatorError;
 
 pub const SIMULATED_CAMERA: &str = "HoloLive Simulator";
-pub(crate) const SUPPORTED_BINNINGS: [u32; 4] = [1, 2, 4, 8];
+const SUPPORTED_BINNINGS: [u32; 4] = [1, 2, 4, 8];
 const SIMULATION_JSON: &str = "simulation.json";
 const SIMULATION_FIXTURE_PATH: &str = "fixtures/simulation.json";
 const MAX_SIMULATED_PIXELS: usize = 2_048 * 2_048;
@@ -89,21 +89,21 @@ impl SimulatorConfig {
         self.simulation
             .validate()
             .map_err(|error| SimulatorError::validation(error.to_string()))?;
-        validate_binning(self)?;
+        validate_binning(self, self.binning)?;
         validate_timing(self)?;
-        let output_pixels = (self.simulation.width / self.binning as usize)
-            * (self.simulation.height / self.binning as usize);
-        if output_pixels > MAX_SIMULATED_PIXELS {
-            return Err(SimulatorError::validation(
-                "binned simulator output exceeds 2048 × 2048 pixels",
-            ));
-        }
         if !self.exposure_seconds.is_finite() || self.exposure_seconds < 0.0 {
             return Err(SimulatorError::validation(
                 "exposure must be finite and non-negative",
             ));
         }
         Ok(())
+    }
+
+    pub(crate) fn supported_binnings(&self) -> Vec<u32> {
+        SUPPORTED_BINNINGS
+            .into_iter()
+            .filter(|&binning| validate_binning(self, binning).is_ok())
+            .collect()
     }
 
     pub(crate) fn load_from_directory(
@@ -139,22 +139,20 @@ fn validate_timing(config: &SimulatorConfig) -> Result<(), SimulatorError> {
     Ok(())
 }
 
-pub(crate) fn binning_divides(width: usize, height: usize, binning: u32) -> bool {
-    binning != 0
-        && width.is_multiple_of(binning as usize)
-        && height.is_multiple_of(binning as usize)
-}
-
-pub(crate) fn validate_binning(config: &SimulatorConfig) -> Result<(), SimulatorError> {
-    if !SUPPORTED_BINNINGS.contains(&config.binning)
-        || !binning_divides(
-            config.simulation.width,
-            config.simulation.height,
-            config.binning,
-        )
+fn validate_binning(config: &SimulatorConfig, binning: u32) -> Result<(), SimulatorError> {
+    if !SUPPORTED_BINNINGS.contains(&binning)
+        || !config.simulation.width.is_multiple_of(binning as usize)
+        || !config.simulation.height.is_multiple_of(binning as usize)
     {
         return Err(SimulatorError::validation(
             "binning must be supported and divide both detector dimensions",
+        ));
+    }
+    let output_pixels = (config.simulation.width / binning as usize)
+        * (config.simulation.height / binning as usize);
+    if output_pixels > MAX_SIMULATED_PIXELS {
+        return Err(SimulatorError::validation(
+            "binned simulator output exceeds 2048 × 2048 pixels",
         ));
     }
     Ok(())

@@ -25,7 +25,7 @@ use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use crate::{
     error::SimulatorError,
-    simulator_config::{SIMULATED_CAMERA, SimulatorConfig, binning_divides},
+    simulator_config::{SIMULATED_CAMERA, SimulatorConfig},
 };
 
 pub struct SimulatorHandle {
@@ -285,7 +285,7 @@ fn respond_cameras(request: Request, config: &SimulatorConfig) {
         detector_type: "CAMERA".into(),
         width: config.simulation.width,
         height: config.simulation.height,
-        binnings: supported_binnings(config.simulation.width, config.simulation.height),
+        binnings: config.supported_binnings(),
         extra: BTreeMap::from([("pixel_size(um)".into(), json!([1.0, 1.0]))]),
     };
     respond_json(request, &BTreeMap::from([(SIMULATED_CAMERA, camera)]));
@@ -353,13 +353,6 @@ fn set_camera_parameters(mut request: Request, config: &mut SimulatorConfig) {
     }
     *config = next;
     let _ = request.respond(Response::empty(StatusCode(204)));
-}
-
-fn supported_binnings(width: usize, height: usize) -> Vec<u32> {
-    crate::simulator_config::SUPPORTED_BINNINGS
-        .into_iter()
-        .filter(|&binning| binning_divides(width, height, binning))
-        .collect()
 }
 
 fn respond_json(request: Request, value: &impl Serialize) {
