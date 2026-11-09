@@ -1,4 +1,4 @@
-use hololive_core::{ReconstructionInfo, ReconstructionSettings};
+use hololive_core::ReconstructionInfo;
 use temscript_client::DecodedArray;
 
 #[derive(Debug, Clone)]
@@ -36,7 +36,6 @@ impl LiveView {
 
 #[derive(Debug)]
 pub enum ReconstructionCommand {
-    Settings(ReconstructionSettings),
     View(LiveView),
     CaptureReference,
     ClearReference,

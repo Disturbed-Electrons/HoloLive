@@ -1,6 +1,6 @@
 use std::{
     panic,
-    sync::{Arc, Mutex, Once},
+    sync::{Mutex, Once},
     time::Duration,
 };
 
@@ -42,6 +42,7 @@ pub(crate) fn disarm_panic_reset() {
 
 const RESET_EXPOSURE_SECONDS: f64 = 4.0;
 const RESET_BINNING: u32 = 1;
+const RESET_TIMEOUT: Duration = Duration::from_secs(1);
 
 fn reset_armed_camera() {
     let Some(PanicReset { client, camera }) =
@@ -49,15 +50,7 @@ fn reset_armed_camera() {
     else {
         return;
     };
-    if let Err(error) = configure_camera(
-        &client,
-        &camera,
-        RESET_EXPOSURE_SECONDS,
-        RESET_BINNING,
-        Some(Duration::from_secs(1)),
-    ) {
-        eprintln!("camera reset failed for {camera:?}: {error}");
-    }
+    restore_camera_settings(&client, &camera);
 }
 
 pub(crate) fn configure_camera(
@@ -77,11 +70,7 @@ pub(crate) fn configure_camera(
     Ok(())
 }
 
-pub(crate) fn reset_camera(
-    client: &TemscriptClient,
-    configured_camera: &Arc<Mutex<Option<String>>>,
-    timeout: Option<Duration>,
-) {
+pub(crate) fn reset_camera(client: &TemscriptClient, configured_camera: &Mutex<Option<String>>) {
     let Some(camera) = configured_camera
         .lock()
         .expect("configured-camera lock poisoned")
@@ -89,12 +78,16 @@ pub(crate) fn reset_camera(
     else {
         return;
     };
+    restore_camera_settings(client, &camera);
+}
+
+fn restore_camera_settings(client: &TemscriptClient, camera: &str) {
     if let Err(error) = configure_camera(
         client,
-        &camera,
+        camera,
         RESET_EXPOSURE_SECONDS,
         RESET_BINNING,
-        timeout,
+        Some(RESET_TIMEOUT),
     ) {
         eprintln!("camera reset failed for {camera:?}: {error}");
     }

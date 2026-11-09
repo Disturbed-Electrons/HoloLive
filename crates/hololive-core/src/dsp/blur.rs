@@ -27,13 +27,7 @@ pub fn gaussian_kernel(sigma: f64, truncate: f64) -> Vec<f64> {
     kernel
 }
 
-pub fn convolve_horizontal(
-    source: &[f64],
-    destination: &mut [f64],
-    width: usize,
-    _height: usize,
-    kernel: &[f64],
-) {
+pub fn convolve_horizontal(source: &[f64], destination: &mut [f64], width: usize, kernel: &[f64]) {
     if kernel.is_empty() || width == 0 {
         destination.fill(0.0);
         return;

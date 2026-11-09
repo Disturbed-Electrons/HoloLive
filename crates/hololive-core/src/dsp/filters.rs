@@ -270,7 +270,7 @@ fn smooth_and_threshold(
     if sigma > 0.0 {
         let kernel = super::blur::gaussian_kernel(sigma, 3.0);
         let mut temporary = vec![0.0; mask.len()];
-        super::blur::convolve_horizontal(&mask, &mut temporary, width, height, &kernel);
+        super::blur::convolve_horizontal(&mask, &mut temporary, width, &kernel);
         super::blur::convolve_vertical(&temporary, &mut mask, width, height, &kernel);
     }
     if let Some(threshold) = threshold.filter(|value| *value > 0.0) {

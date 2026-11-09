@@ -181,8 +181,7 @@ impl<T: FrameSample> HoloLiveApp<T> {
                 .show(NoticeKind::Status, format!("Invalid Settings: {error}"));
             return;
         }
-        self.pipeline
-            .reconstruction(ReconstructionCommand::Settings(settings));
+        self.pipeline.set_reconstruction_settings(settings);
     }
 
     pub(crate) fn set_view(&mut self, view: LiveView) {

@@ -2,11 +2,11 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
+        mpsc::Receiver,
     },
     thread::{self, JoinHandle},
 };
 
-use crossbeam_channel::Receiver;
 use hololive_core::{
     DisplayMode, Frame, Real, Reconstruction, ReconstructionEngine, ReconstructionSettings,
     ReferenceWave,
@@ -80,10 +80,6 @@ pub(crate) fn spawn_reconstruction<T: FrameSample>(
             loop {
                 for command in commands.try_iter() {
                     match command {
-                        ReconstructionCommand::Settings(next) => {
-                            settings = next;
-                            work = Work::Reconstruct;
-                        }
                         ReconstructionCommand::View(next) => {
                             if view != next {
                                 view = next;

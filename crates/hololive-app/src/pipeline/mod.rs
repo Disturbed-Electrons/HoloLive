@@ -9,12 +9,11 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
+        mpsc::{Sender, channel},
     },
     thread::JoinHandle,
-    time::Duration,
 };
 
-use crossbeam_channel::{Sender, unbounded};
 use hololive_core::{Frame, ReconstructionSettings};
 use temscript_client::TemscriptClient;
 
@@ -60,8 +59,8 @@ impl<T: FrameSample> Pipeline<T> {
         let configured_camera = Arc::new(Mutex::new(None));
         let acquisition_commands = Arc::new(LatestSlot::new());
         let reconstruction_settings = Arc::new(LatestSlot::new());
-        let (reconstruction_tx, reconstruction_rx) = unbounded();
-        let (recycle_tx, recycle_rx) = unbounded();
+        let (reconstruction_tx, reconstruction_rx) = channel();
+        let (recycle_tx, recycle_rx) = channel();
 
         install_panic_reset_hook();
         arm_panic_reset(client.clone(), camera.camera.clone());
@@ -141,15 +140,13 @@ impl<T> Pipeline<T> {
         let _superseded = self.acquisition_commands.publish(command);
     }
 
+    pub fn set_reconstruction_settings(&self, settings: ReconstructionSettings) {
+        let _superseded = self.reconstruction_settings.publish(settings);
+        self.frames.wake();
+    }
+
     pub fn reconstruction(&self, command: ReconstructionCommand) {
-        match command {
-            ReconstructionCommand::Settings(settings) => {
-                let _superseded = self.reconstruction_settings.publish(settings);
-            }
-            command => {
-                let _ = self.reconstruction_commands.send(command);
-            }
-        }
+        let _ = self.reconstruction_commands.send(command);
         self.frames.wake();
     }
 }
@@ -164,11 +161,7 @@ impl<T> Drop for Pipeline<T> {
         if let Some(worker) = self.acquisition_worker.take() {
             let _ = worker.join();
         }
-        reset_camera(
-            &self.client,
-            &self.configured_camera,
-            Some(Duration::from_secs(1)),
-        );
+        reset_camera(&self.client, &self.configured_camera);
         disarm_panic_reset();
     }
 }
