@@ -51,6 +51,7 @@ impl<T: FrameSample> Pipeline<T> {
         settings: ReconstructionSettings,
     ) -> Self {
         let frames = Arc::new(LatestSlot::new());
+        let recycled_pixels = Arc::new(LatestSlot::new());
         let results = Arc::new(LatestSlot::new());
         let events = Arc::new(LatestSlot::new());
         let status = Arc::new(Mutex::new(RuntimeStatus::new(camera.camera.clone())));
@@ -71,6 +72,7 @@ impl<T: FrameSample> Pipeline<T> {
             exposure_seconds: camera.exposure_seconds,
             binning: camera.binning,
             frames: Arc::clone(&frames),
+            recycled_pixels: Arc::clone(&recycled_pixels),
             commands: Arc::clone(&acquisition_commands),
             events: Arc::clone(&events),
             status: Arc::clone(&status),
@@ -82,6 +84,7 @@ impl<T: FrameSample> Pipeline<T> {
         let reconstruction = spawn_reconstruction(ReconstructionWorker {
             repaint,
             frames: Arc::clone(&frames),
+            recycled_pixels,
             results: Arc::clone(&results),
             settings: Arc::clone(&reconstruction_settings),
             commands: reconstruction_rx,

@@ -25,6 +25,7 @@ use super::{
 pub(crate) struct ReconstructionWorker<T> {
     pub repaint: Arc<dyn Fn() + Send + Sync>,
     pub frames: Arc<LatestSlot<Frame<T>>>,
+    pub recycled_pixels: Arc<LatestSlot<Vec<T>>>,
     pub results: Arc<LatestSlot<LiveResult>>,
     pub settings: Arc<LatestSlot<ReconstructionSettings>>,
     pub commands: Receiver<ReconstructionCommand>,
@@ -50,6 +51,7 @@ pub(crate) fn spawn_reconstruction<T: FrameSample>(
     let ReconstructionWorker {
         repaint,
         frames,
+        recycled_pixels,
         results,
         settings: settings_slot,
         commands,
@@ -109,12 +111,24 @@ pub(crate) fn spawn_reconstruction<T: FrameSample>(
                     settings = next;
                     work = Work::Reconstruct;
                 }
-                take_live_frame(&paused, &frames, &mut latest_frame, &mut work);
+                take_live_frame(
+                    &paused,
+                    &frames,
+                    &recycled_pixels,
+                    &mut latest_frame,
+                    &mut work,
+                );
                 if latest_frame.is_none() || work == Work::Idle {
                     frames.wait_for_change(&mut revision, &cancelled);
                     continue;
                 }
-                take_live_frame(&paused, &frames, &mut latest_frame, &mut work);
+                take_live_frame(
+                    &paused,
+                    &frames,
+                    &recycled_pixels,
+                    &mut latest_frame,
+                    &mut work,
+                );
                 let reconstruct = work == Work::Reconstruct;
                 work = Work::Idle;
                 let frame = latest_frame.as_ref().expect("checked latest frame");
@@ -189,6 +203,7 @@ pub(crate) fn spawn_reconstruction<T: FrameSample>(
 fn take_live_frame<T>(
     paused: &AtomicBool,
     frames: &LatestSlot<Frame<T>>,
+    recycled_pixels: &LatestSlot<Vec<T>>,
     latest_frame: &mut Option<Frame<T>>,
     work: &mut Work,
 ) {
@@ -196,7 +211,9 @@ fn take_live_frame<T>(
         return;
     }
     if let Some(frame) = frames.take() {
-        *latest_frame = Some(frame);
+        if let Some(previous) = latest_frame.replace(frame) {
+            let _superseded = recycled_pixels.publish(previous.into_pixels());
+        }
         *work = Work::Reconstruct;
     }
 }

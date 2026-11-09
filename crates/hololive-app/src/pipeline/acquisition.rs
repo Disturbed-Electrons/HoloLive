@@ -25,6 +25,7 @@ pub(crate) struct AcquisitionWorker<T> {
     pub exposure_seconds: f64,
     pub binning: u32,
     pub frames: Arc<LatestSlot<Frame<T>>>,
+    pub recycled_pixels: Arc<LatestSlot<Vec<T>>>,
     pub commands: Arc<LatestSlot<AcquisitionCommand>>,
     pub events: Arc<LatestSlot<PipelineEvent>>,
     pub status: Arc<Mutex<RuntimeStatus>>,
@@ -94,6 +95,11 @@ impl<T: FrameSample> AcquisitionWorker<T> {
                     previous = now;
                     let width = array.width;
                     let height = array.height;
+                    if self.pixels.capacity() == 0
+                        && let Some(pixels) = self.recycled_pixels.take()
+                    {
+                        self.pixels = pixels;
+                    }
                     T::convert_into(&array, &mut self.pixels);
                     let frame = Frame::new(
                         width,
