@@ -49,10 +49,13 @@ impl<T> LatestSlot<T> {
     }
 
     pub(crate) fn wait_for_change(&self, revision: &mut u64, cancelled: &AtomicBool) {
-        let mut state = self.state.lock().expect("latest-value lock poisoned");
-        while state.revision == *revision && !cancelled.load(Ordering::Acquire) {
-            state = self.ready.wait(state).expect("latest-value lock poisoned");
-        }
+        let state = self.state.lock().expect("latest-value lock poisoned");
+        let state = self
+            .ready
+            .wait_while(state, |state| {
+                state.revision == *revision && !cancelled.load(Ordering::Acquire)
+            })
+            .expect("latest-value lock poisoned");
         *revision = state.revision;
     }
 }

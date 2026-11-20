@@ -235,10 +235,7 @@ pub(crate) fn pack_rgba_into<T: Real>(values: &[T], range: DisplayRange, output:
     output.resize(values.len().saturating_mul(4), 255);
     for (pixel, &value) in output.as_chunks_mut::<4>().0.iter_mut().zip(values) {
         let gray = pack_finite_u8(value.as_f32(), range.minimum, scale);
-        pixel[0] = gray;
-        pixel[1] = gray;
-        pixel[2] = gray;
-        pixel[3] = 255;
+        *pixel = [gray, gray, gray, 255];
     }
 }
 

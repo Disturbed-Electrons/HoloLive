@@ -1,9 +1,8 @@
 //! Second-difference pixel reliability for edge sorting (Arevalillo *et al.*, 2002).
 //!
 //! Lower reliability is better. Interior pixels only: the H/V/D1/D2 stencil
-//! needs a one-pixel border, which keeps `T::max_value()` from the fill so
-//! those pixels are merged last. Each interior row writes a disjoint slice of
-//! the reliability buffer.
+//! needs a one-pixel border, which gets `T::max_value()` so those pixels are
+//! merged last. Each row writes a disjoint slice of the reliability buffer.
 //!
 //! ```text
 //! H  = γ(φ_{i,j−1} − φ) − γ(φ − φ_{i,j+1})
@@ -28,30 +27,32 @@ pub(super) fn calculate_reliability<T: Real>(
     width: usize,
     height: usize,
 ) {
-    reliability
-        .par_iter_mut()
-        .for_each(|slot| *slot = T::max_value());
-    if width < 3 || height < 3 {
-        return;
-    }
-    let width_plus_one = width + 1;
-    let width_minus_one = width - 1;
+    let border = T::max_value();
     reliability
         .par_chunks_mut(width)
         .enumerate()
         .for_each(|(row, dest)| {
-            if row == 0 || row + 1 >= height {
+            if width < 3 || row == 0 || row + 1 == height {
+                dest.fill(border);
                 return;
             }
-            for (column, slot) in dest.iter_mut().enumerate().take(width_minus_one).skip(1) {
-                let idx = row * width + column;
-                let wip = phase[idx];
-                let h = wrap(phase[idx - 1] - wip) - wrap(wip - phase[idx + 1]);
-                let v = wrap(phase[idx - width] - wip) - wrap(wip - phase[idx + width]);
-                let d1 = wrap(phase[idx - width_plus_one] - wip)
-                    - wrap(wip - phase[idx + width_plus_one]);
-                let d2 = wrap(phase[idx - width_minus_one] - wip)
-                    - wrap(wip - phase[idx + width_minus_one]);
+            dest[0] = border;
+            dest[width - 1] = border;
+            let (above, rest) = phase[(row - 1) * width..(row + 2) * width].split_at(width);
+            let (middle, below) = rest.split_at(width);
+            for (((slot, top), middle), bottom) in dest[1..width - 1]
+                .iter_mut()
+                .zip(above.array_windows::<3>())
+                .zip(middle.array_windows::<3>())
+                .zip(below.array_windows::<3>())
+            {
+                let &[nw, n, ne] = top;
+                let &[w, center, e] = middle;
+                let &[sw, s, se] = bottom;
+                let h = wrap(w - center) - wrap(center - e);
+                let v = wrap(n - center) - wrap(center - s);
+                let d1 = wrap(nw - center) - wrap(center - se);
+                let d2 = wrap(ne - center) - wrap(center - sw);
                 *slot = h * h + v * v + d1 * d1 + d2 * d2;
             }
         });

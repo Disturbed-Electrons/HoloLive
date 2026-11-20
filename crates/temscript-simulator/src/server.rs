@@ -139,8 +139,7 @@ fn serve(server: Server, mut config: SimulatorConfig, cancelled: Arc<AtomicBool>
             continue;
         }
 
-        let path = request_path(request.url());
-        dispatch_request(request, &path, &mut config, &cancelled, &mut state);
+        dispatch_request(request, &mut config, &cancelled, &mut state);
     }
 }
 
@@ -148,27 +147,26 @@ fn inject_on_count(every: Option<u64>, count: u64) -> bool {
     every.is_some_and(|n| n > 0 && count.is_multiple_of(n))
 }
 
-fn request_path(url: &str) -> String {
-    url.split_once('?').map_or(url, |(path, _)| path).to_owned()
-}
-
 fn dispatch_request(
     request: Request,
-    path: &str,
     config: &mut SimulatorConfig,
     cancelled: &AtomicBool,
     state: &mut ServeState,
 ) {
+    let url = request.url();
+    let path = url.split_once('?').map_or(url, |(path, _)| path);
     match (request.method(), path) {
         (&Method::Get, VERSION_PATH) => respond_json(request, &json!(VERSION)),
         (&Method::Get, CAMERAS_PATH) => respond_cameras(request, config),
         (&Method::Get, path) if path.starts_with(CAMERA_PARAM_PREFIX) => {
-            if let Some(request) = require_simulated_camera(request, camera_from_param_path(path)) {
+            let camera = camera_from_param_path(path);
+            if let Some(request) = require_simulated_camera(request, camera) {
                 respond_json(request, &camera_parameters(config));
             }
         }
         (&Method::Put, path) if path.starts_with(CAMERA_PARAM_PREFIX) => {
-            if let Some(request) = require_simulated_camera(request, camera_from_param_path(path)) {
+            let camera = camera_from_param_path(path);
+            if let Some(request) = require_simulated_camera(request, camera) {
                 set_camera_parameters(request, config);
             }
         }
@@ -362,16 +360,27 @@ fn respond_json(request: Request, value: &impl Serialize) {
     }
 }
 
+fn accepts_gzip(request: &Request) -> bool {
+    request
+        .headers()
+        .iter()
+        .filter(|header| header.field.equiv("Accept-Encoding"))
+        .flat_map(|header| header.value.as_str().split(','))
+        .any(|coding| {
+            let (name, weight) = coding.split_once(';').unwrap_or((coding, "q=1"));
+            name.trim().eq_ignore_ascii_case("gzip")
+                && weight.split_once('=').is_some_and(|(key, value)| {
+                    key.trim().eq_ignore_ascii_case("q")
+                        && value
+                            .trim()
+                            .parse::<f32>()
+                            .is_ok_and(|q| q > 0.0 && q <= 1.0)
+                })
+        })
+}
+
 fn respond_raw_json(request: Request, body: Vec<u8>) {
-    let accepts_gzip = request.headers().iter().any(|header| {
-        header.field.equiv("Accept-Encoding")
-            && header
-                .value
-                .as_str()
-                .split(',')
-                .any(|value| value.trim().starts_with("gzip"))
-    });
-    let mut response = if accepts_gzip && body.len() > 256 {
+    let mut response = if body.len() > 256 && accepts_gzip(&request) {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::new(5));
         match encoder.write_all(&body).and_then(|()| encoder.finish()) {
             Ok(compressed) => {
@@ -383,6 +392,7 @@ fn respond_raw_json(request: Request, body: Vec<u8>) {
         Response::from_data(body)
     };
     response.add_header(header("Content-Type", "application/json"));
+    response.add_header(header("Vary", "Accept-Encoding"));
     let _ = request.respond(response);
 }
 

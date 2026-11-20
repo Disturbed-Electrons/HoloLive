@@ -12,9 +12,12 @@ use crate::{
 
 const MAX_JSON_RESPONSE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_ERROR_MESSAGE_BYTES: usize = 64 * 1024;
-const MAX_ACQUIRE_RESPONSE_BYTES: usize =
-    (crate::array::MAX_IMAGE_PIXELS * crate::ScalarType::FLOAT64.bytes()).div_ceil(3) * 4
-        + 64 * 1024;
+const MAX_ACQUIRE_RESPONSE_BYTES: usize = base64::encoded_len(
+    crate::array::MAX_IMAGE_PIXELS * crate::ScalarType::FLOAT64.bytes(),
+    true,
+)
+.expect("maximum image fits in a base64 response")
+    + 64 * 1024;
 
 #[derive(Clone)]
 pub struct TemscriptClient {

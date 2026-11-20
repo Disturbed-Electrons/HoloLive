@@ -98,9 +98,8 @@ fn transform_rows<T: FftNum + Send + Sync>(
         .par_chunks_mut(rows_per_worker * row_len)
         .zip(scratch.par_iter_mut())
         .for_each(|(block, scratch)| {
-            for row in block.chunks_exact_mut(row_len) {
-                fft.process_with_scratch(row, scratch);
-            }
+            // RustFFT processes each FFT-length row in the block with this scratch buffer.
+            fft.process_with_scratch(block, scratch);
         });
 }
 

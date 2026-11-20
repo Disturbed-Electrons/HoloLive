@@ -1,5 +1,3 @@
-use std::mem::size_of;
-
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +79,7 @@ macro_rules! decode_pixels {
     };
     (@ $bytes:expr, $endian:expr, $kind:expr; $($scalar:ident, $variant:ident, $ty:ty);+) => {
         match $kind {
-            ScalarType::INT8 => PixelData::I8($bytes.into_iter().map(|byte| byte as i8).collect()),
+            ScalarType::INT8 => PixelData::I8($bytes.into_iter().map(u8::cast_signed).collect()),
             ScalarType::UINT8 => PixelData::U8($bytes),
             $(
                 ScalarType::$scalar => PixelData::$variant(decode_chunks(
@@ -95,24 +93,29 @@ macro_rules! decode_pixels {
     };
 }
 
-macro_rules! encode_scalar {
-    ($out:expr, $value:expr, $endian:expr, $kind:expr) => {
-        encode_scalar!(@ $out, $value, $endian, $kind;
+macro_rules! encode_pixels {
+    ($values:expr, $out:expr, $byte_order:ident, $kind:expr) => {
+        encode_pixels!(@ $values, $out, $byte_order, $kind;
             INT8, i8; INT16, i16; INT32, i32; INT64, i64;
             UINT8, u8; UINT16, u16; UINT32, u32; UINT64, u64
         )
     };
-    (@ $out:expr, $value:expr, $endian:expr, $kind:expr; $($scalar:ident, $ty:ty);+) => {
+    (@ $values:expr, $out:expr, $byte_order:ident, $kind:expr; $($scalar:ident, $ty:ty);+) => {
         match $kind {
             $(
-                ScalarType::$scalar => push_bytes(
+                ScalarType::$scalar => encode_samples(
+                    $values,
                     $out,
-                    saturating_round($value, <$ty>::MIN as f64, <$ty>::MAX as f64) as $ty,
-                    $endian,
+                    |value| saturating_round(value, <$ty>::MIN as f64, <$ty>::MAX as f64) as $ty,
+                    <$ty>::$byte_order,
                 ),
             )+
-            ScalarType::FLOAT32 => push_bytes($out, $value as f32, $endian),
-            ScalarType::FLOAT64 => push_bytes($out, $value, $endian),
+            ScalarType::FLOAT32 => {
+                encode_samples($values, $out, |value| value as f32, f32::$byte_order)
+            }
+            ScalarType::FLOAT64 => {
+                encode_samples($values, $out, std::convert::identity, f64::$byte_order)
+            }
         }
     };
 }
@@ -140,11 +143,8 @@ impl PackedArray {
         let expected = count
             .checked_mul(self.scalar_type.bytes())
             .ok_or(ProtocolError::InvalidDimensions)?;
-        let encoded = expected
-            .checked_add(2)
-            .map(|length| length / 3)
-            .and_then(|length| length.checked_mul(4))
-            .ok_or(ProtocolError::InvalidDimensions)?;
+        let encoded =
+            base64::encoded_len(expected, true).ok_or(ProtocolError::InvalidDimensions)?;
         if self.data.len() != encoded {
             return Err(ProtocolError::EncodedLength {
                 expected: encoded,
@@ -181,8 +181,9 @@ impl PackedArray {
             });
         }
         let mut bytes = Vec::with_capacity(values.len() * scalar_type.bytes());
-        for &value in values {
-            encode_scalar!(&mut bytes, value, endianness, scalar_type);
+        match endianness {
+            Endianness::LITTLE => encode_pixels!(values, &mut bytes, to_le_bytes, scalar_type),
+            Endianness::BIG => encode_pixels!(values, &mut bytes, to_be_bytes, scalar_type),
         }
         Ok(Self {
             width,
@@ -214,53 +215,28 @@ impl DecodedArray {
     }
 }
 
-trait ByteValue: Copy {
-    type Bytes: AsRef<[u8]>;
-    fn little(self) -> Self::Bytes;
-    fn big(self) -> Self::Bytes;
-}
-
-macro_rules! impl_byte_value {
-    ($($ty:ty),+) => {
-        $(
-            impl ByteValue for $ty {
-                type Bytes = [u8; size_of::<$ty>()];
-                fn little(self) -> Self::Bytes {
-                    self.to_le_bytes()
-                }
-                fn big(self) -> Self::Bytes {
-                    self.to_be_bytes()
-                }
-            }
-        )+
-    };
-}
-impl_byte_value!(i8, i16, i32, i64, u8, u16, u32, u64, f32, f64);
-
-fn push_bytes<T: ByteValue>(output: &mut Vec<u8>, value: T, endianness: Endianness) {
-    let bytes = match endianness {
-        Endianness::LITTLE => value.little(),
-        Endianness::BIG => value.big(),
-    };
-    output.extend_from_slice(bytes.as_ref());
+fn encode_samples<T, const N: usize>(
+    values: &[f64],
+    output: &mut Vec<u8>,
+    convert: impl Fn(f64) -> T,
+    to_bytes: impl Fn(T) -> [u8; N],
+) {
+    for &value in values {
+        output.extend_from_slice(&to_bytes(convert(value)));
+    }
 }
 
 fn decode_chunks<T, const N: usize>(
     bytes: &[u8],
     endianness: Endianness,
-    little: fn([u8; N]) -> T,
-    big: fn([u8; N]) -> T,
+    little: impl Fn([u8; N]) -> T,
+    big: impl Fn([u8; N]) -> T,
 ) -> Vec<T> {
-    bytes
-        .as_chunks::<N>()
-        .0
-        .iter()
-        .copied()
-        .map(|chunk| match endianness {
-            Endianness::LITTLE => little(chunk),
-            Endianness::BIG => big(chunk),
-        })
-        .collect()
+    let chunks = bytes.as_chunks::<N>().0.iter().copied();
+    match endianness {
+        Endianness::LITTLE => chunks.map(little).collect(),
+        Endianness::BIG => chunks.map(big).collect(),
+    }
 }
 
 fn saturating_round(value: f64, minimum: f64, maximum: f64) -> f64 {

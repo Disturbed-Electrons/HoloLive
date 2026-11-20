@@ -50,12 +50,12 @@ Reference capture reconstructs the retained frame, stores its uncorrected comple
 
 FFT plans, scratch pools, Tukey windows, crop index buffers, and large intermediate buffers are reused. Spectra stay in native FFT order: centered crop and display coordinates are mapped into the buffer without constructing a full-array `fftshift` copy.
 
-A two-dimensional FFT uses parallel row transforms, a cache-tiled transpose with 32×32 tiles, and a second row pass for the columns. Scratch storage is shared across successive transforms through reusable work blocks.
+A two-dimensional FFT uses parallel row transforms, a cache-tiled transpose with 32×32 tiles, and a second row pass for the columns. RustFFT processes all rows in each work block with one reusable scratch buffer.
 
 - **Sideband detection** searches rows in the selected half-plane, excluding the circular centerband mask. Equal maxima resolve in row-major order; a locked sideband skips the search.
 - **Crop and filtering** copy the sideband through precomputed column indices into a zero-padded inverse buffer. Automatic crop radius is one-sixth of the center-to-sideband distance, rounded to the nearest pixel and limited to fit the detector and output. The radial Tukey window is interpolated from a symmetric one-dimensional window and cached by crop size and alpha. Two-pixel crops are left unwindowed to preserve their signal.
 - **Wave extraction** runs in parallel: modulus gives amplitude, while `atan2` gives phase. Wrapped phase supports integer amplification; unwrapped phase uses the unamplified angle. Reference correction divides by the captured complex wave, mapping negligible or non-finite reference samples to zero.
-- **Phase unwrapping** uses Arevalillo–Herráez (2002) second-difference path following in place. Pixel reset, reliability calculation, adjacency-edge construction, stable sorting, and the combined output/min–max pass run in parallel. Equal-quality edges retain their insertion order; the Kruskal group merge stays serial. Reused workspace holds pixel links, reliability values, and edges; new pixel slots are initialized directly when the image grows.
+- **Phase unwrapping** uses Arevalillo–Herráez (2002) second-difference path following in place. Pixel reset, reliability calculation, adjacency-edge construction, stable sorting, and the combined output/min–max pass run in parallel. The reliability pass writes the border and interior scores together. Equal-quality edges retain their insertion order; the Kruskal group merge stays serial. Reused workspace holds pixel links, reliability values, and edges; new pixel slots are initialized directly when the image grows.
 
 **Divisor** sets a square output size from the larger detector axis. The requested size is kept at least 16 pixels and large enough for the latest reconstructed crop, then rounded up to a fast FFT length with prime factors in `{2, 3, 5, 7, 11}`. The default `f32` pipeline reduces memory traffic; select `--precision f64` for double precision throughout reconstruction.
 
@@ -77,7 +77,7 @@ The spectrum's upper percentile suppresses isolated peaks such as DC. Unwrapped 
 
 ### Simulated Acquisition
 
-The simulator generates, encodes, and serves each frame synchronously on its own thread. It uses the same temscript v1 JSON/base64 array format as live acquisition, with gzip level 5 for sufficiently large responses when the client accepts gzip. Target FPS and jitter pace the response stream.
+The simulator generates, encodes, and serves each frame synchronously on its own thread. It uses the same temscript v1 JSON/base64 array format as live acquisition. It can compress JSON responses larger than 256 bytes with gzip level 5 when the client explicitly lists `gzip` in `Accept-Encoding` with a positive or omitted weight. Target FPS and jitter pace the response stream.
 
 Hologram generation uses row loops with carrier terms computed outside the inner loop. Scene selection happens once per frame, and vacuum skips object geometry. Intensity and noise use separate passes so the carrier loop can vectorize. Shot noise uses a Gaussian approximation, `I + sqrt(I × scale) × N(0,1)`, clamped at zero, with `scale = poisson_scale × counts` and a reusable `Xoshiro256PlusPlus` stream.
 

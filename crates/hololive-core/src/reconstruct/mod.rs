@@ -76,6 +76,7 @@ impl<T: Real> ReconstructionEngine<T> {
         reference: Option<&ReferenceWave<T>>,
         output: &mut Reconstruction<T>,
     ) -> Result<(), CoreError> {
+        self.latest_wave = None;
         let total_start = Instant::now();
         let forward_fft_ms = self.ensure_forward_spectrum(frame)?;
         settings.validate()?;
@@ -341,6 +342,7 @@ impl<T: Real> ReconstructionEngine<T> {
         output.display_mode = settings.display_mode;
     }
 
+    /// Capture the uncorrected wave if the latest reconstruction succeeded.
     #[must_use]
     pub fn capture_reference(&self) -> Option<ReferenceWave<T>> {
         let (settings, scale) = self.latest_wave.as_ref()?;
