@@ -29,16 +29,16 @@ pub fn tukey(length: usize, alpha: f64) -> Result<Vec<f64>, CoreError> {
         .collect())
 }
 
-/// Square radial Tukey window, linearly interpolated from a symmetric
-/// one-dimensional window. Two-pixel crops are left
-/// unwindowed because their sampled Tukey window would be entirely zero.
+/// Radial Tukey window centered on the carrier bin at `side / 2`.
+/// Interpolate an odd-length Tukey profile and leave two-pixel crops unwindowed.
 pub fn radial_tukey(side: usize, alpha: f64) -> Result<Vec<f64>, CoreError> {
     let len = checked_len(side, side)?;
-    let window = tukey(side, alpha)?;
+    let radius = side / 2;
+    let window = tukey(2 * radius + 1, alpha)?;
     if side <= 2 {
         return Ok(vec![1.0; len]);
     }
-    let center = (side as f64 - 1.0) / 2.0;
+    let center = radius as f64;
     Ok((0..len)
         .map(|index| {
             let x = (index % side) as f64 - center;
@@ -136,22 +136,10 @@ pub fn fresnel_mask(
     let mut mask = vec![1.0; checked_len(width, height)?];
     let dx = (sideband.0 - center.0) * settings.distance_percent / 100.0;
     let dy = (sideband.1 - center.1) * settings.distance_percent / 100.0;
-    draw_line(
-        &mut mask,
-        width,
-        height,
-        center,
-        (center.0 + dx, center.1 + dy),
-        settings.thickness,
-    );
-    draw_line(
-        &mut mask,
-        width,
-        height,
-        center,
-        (center.0 - dx, center.1 - dy),
-        settings.thickness,
-    );
+    let origin = (center.0.round(), center.1.round());
+    for offset in [(dx, dy), (-dx, -dy)] {
+        draw_line(&mut mask, width, height, origin, offset, settings.thickness);
+    }
     smooth_and_threshold(mask, width, height, settings.smoothness, settings.threshold)
 }
 
@@ -164,43 +152,33 @@ pub fn gibbs_mask(
 ) -> Result<Vec<f64>, CoreError> {
     let mut mask = vec![1.0; checked_len(width, height)?];
     let fraction = settings.distance_percent / 100.0;
-    for endpoint in compass_endpoints(center, width as f64, height as f64, fraction) {
-        draw_line(
-            &mut mask,
-            width,
-            height,
-            center,
-            endpoint,
-            settings.thickness,
-        );
+    let origin = (center.0.round(), center.1.round());
+    let (cx, cy) = origin;
+    let offsets = [
+        (0.0, -cy * fraction),
+        (0.0, (height as f64 - 1.0 - cy) * fraction),
+        (-cx * fraction, 0.0),
+        ((width as f64 - 1.0 - cx) * fraction, 0.0),
+    ];
+    for offset in offsets {
+        draw_line(&mut mask, width, height, origin, offset, settings.thickness);
     }
     smooth_and_threshold(mask, width, height, settings.smoothness, settings.threshold)
-}
-
-fn compass_endpoints(
-    center: (f64, f64),
-    width: f64,
-    height: f64,
-    fraction: f64,
-) -> [(f64, f64); 4] {
-    let (cx, cy) = center;
-    let north = (cx, cy - cy * fraction);
-    let south = (cx, cy + (height - 1.0 - cy) * fraction);
-    let west = (cx - cx * fraction, cy);
-    let east = (cx + (width - 1.0 - cx) * fraction, cy);
-    [north, south, west, east]
 }
 
 fn draw_line(
     mask: &mut [f64],
     width: usize,
     height: usize,
-    start: (f64, f64),
-    end: (f64, f64),
+    (x, y): (f64, f64),
+    offset: (f64, f64),
     thickness: usize,
 ) {
-    let (mut x0, mut y0) = (start.0.round() as isize, start.1.round() as isize);
-    let (x1, y1) = (end.0.round() as isize, end.1.round() as isize);
+    let (mut x0, mut y0) = (x as isize, y as isize);
+    let (x1, y1) = (
+        (x + offset.0.round_ties_even()) as isize,
+        (y + offset.1.round_ties_even()) as isize,
+    );
     let dx = (x1 - x0).abs();
     let dy = -(y1 - y0).abs();
     let step_x = if x0 < x1 { 1 } else { -1 };
