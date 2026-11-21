@@ -81,7 +81,7 @@ The simulator generates, encodes, and serves each frame synchronously on its own
 
 Hologram generation uses row loops with carrier terms computed outside the inner loop. Scene selection happens once per frame, and vacuum skips object geometry. Intensity and noise use separate passes so the carrier loop can vectorize. Shot noise uses a Gaussian approximation, `I + sqrt(I × scale) × N(0,1)`, clamped at zero, with `scale = poisson_scale × counts` and a reusable `Xoshiro256PlusPlus` stream.
 
-Detector binning is modeled analytically before generation: dimensions, summed counts, fringe sampling, bin-integration contrast, and noise parameters are transformed without allocating a full-resolution detector image.
+The simulator models detector binning analytically by adjusting dimensions, summed counts, fringe sampling, contrast, carrier phase, and noise parameters before generation. This reproduces noise-free vacuum block sums. Specimen amplitude and phase are sampled once per binned pixel.
 
 ## Crate Map
 
@@ -115,7 +115,7 @@ HoloLive starts in Simulated mode by default:
 
 `--release`, `--debug`, and `--native` remain build flags even after `run` (`./build.sh run --native` compiles for this CPU). Use `--` to forward application arguments unchanged, for example `./build.sh run -- --source live`.
 
-The embedded simulator does not send traffic to a microscope PC. It exposes a `temscript`-compatible loopback server and exercises the same HTTP, JSON, gzip, base64, scalar decoding, acquisition, and reconstruction path used for a live microscope. Simulated hologram settings are loaded from `simulation.json` or `fixtures/simulation.json` in the current working directory; if neither file is present, the process uses `SimulatorConfig::default()` (UINT16 little-endian, 0.1 s exposure, 4× binning). [`fixtures/simulation.json`](fixtures/simulation.json) matches those static fields for disk overrides; it omits `seed`, so a loaded fixture draws a new seed unless you set one. The default models a 2048² detector at 4× binning but generates only the effective 512² frame: dimensions, summed counts, fringe sampling, bin-integration contrast, and shot noise are transformed before generation rather than downsampling a full-resolution image.
+The embedded simulator does not send traffic to a microscope PC. It exposes a `temscript`-compatible loopback server and exercises the same HTTP, JSON, gzip, base64, scalar decoding, acquisition, and reconstruction path used for a live microscope. Simulated hologram settings are loaded from `simulation.json` or `fixtures/simulation.json` in the current working directory; if neither file is present, the process uses `SimulatorConfig::default()` (UINT16 little-endian, 0.1 s exposure, 4× binning). [`fixtures/simulation.json`](fixtures/simulation.json) matches those static fields for disk overrides; it omits `seed`, so a loaded fixture draws a new seed unless you set one. The default models a 2048² detector at 4× binning and generates only the effective 512² frame.
 
 To serve that loopback camera as a standalone process (for another HoloLive instance or a temscript client):
 

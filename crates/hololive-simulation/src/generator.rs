@@ -1,5 +1,3 @@
-use std::f64::consts::TAU;
-
 use rand::{RngExt as _, SeedableRng, rngs::Xoshiro256PlusPlus};
 use rand_distr::StandardNormal;
 
@@ -44,16 +42,11 @@ impl HologramGenerator {
 }
 
 fn fill_intensity(output: &mut [f64], settings: &SimulationSettings, sequence: u64) {
-    let width = settings.width;
-    let angle = settings.fringe_angle_degrees.to_radians();
-    let kx = -TAU / settings.sampling * angle.sin();
-    let ky = TAU / settings.sampling * angle.cos();
-    let counts = settings.counts;
-    let visibility = settings.visibility;
+    let (kx, ky) = settings.carrier_wavevector();
     let drift = sequence as f64 * 0.004;
 
     match settings.scene {
-        Scene::Vacuum => fill_vacuum(output, width, kx, ky, counts, visibility),
+        Scene::Vacuum => fill_vacuum(output, settings, kx, ky),
         Scene::Combined => fill_object(output, settings, kx, ky, drift, object_profile),
         Scene::PhaseObject => fill_object(output, settings, kx, ky, drift, |nx, ny, drift| {
             (1.0, object_profile(nx, ny, drift).1)
@@ -64,9 +57,11 @@ fn fill_intensity(output: &mut [f64], settings: &SimulationSettings, sequence: u
     }
 }
 
-fn fill_vacuum(output: &mut [f64], width: usize, kx: f64, ky: f64, counts: f64, visibility: f64) {
-    for (y, row) in output.chunks_exact_mut(width).enumerate() {
-        let y_term = ky * y as f64;
+fn fill_vacuum(output: &mut [f64], settings: &SimulationSettings, kx: f64, ky: f64) {
+    let counts = settings.counts;
+    let visibility = settings.visibility;
+    for (y, row) in output.chunks_exact_mut(settings.width).enumerate() {
+        let y_term = ky * y as f64 + settings.carrier_phase_radians;
         for (x, pixel) in row.iter_mut().enumerate() {
             *pixel = visibility.mul_add((y_term + kx * x as f64).cos(), 1.0) * counts;
         }
@@ -90,7 +85,7 @@ fn fill_object(
 
     for (y, row) in output.chunks_exact_mut(width).enumerate() {
         let yf = y as f64;
-        let y_term = ky * yf;
+        let y_term = ky * yf + settings.carrier_phase_radians;
         let ny = ny0 + yf * step;
         for (x, pixel) in row.iter_mut().enumerate() {
             let xf = x as f64;
