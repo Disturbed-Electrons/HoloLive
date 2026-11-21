@@ -55,6 +55,9 @@ impl<T: FrameSample> AcquisitionWorker<T> {
         let mut backoff = INITIAL_BACKOFF;
         while !self.cancelled.load(Ordering::Acquire) {
             camera_ready = self.apply_configure(camera_ready);
+            if self.cancelled.load(Ordering::Acquire) {
+                break;
+            }
             if self.paused() {
                 thread::sleep(Duration::from_millis(20));
                 continue;
@@ -80,15 +83,22 @@ impl<T: FrameSample> AcquisitionWorker<T> {
                     }
                 }
             }
+            if self.cancelled.load(Ordering::Acquire) || self.paused() {
+                continue;
+            }
             let frame_exposure = self.exposure_seconds;
             let frame_binning = self.binning;
             match self.client.acquire(&self.camera) {
                 Ok(array) => {
-                    camera_ready = self.apply_configure(camera_ready);
-                    if !camera_ready {
-                        continue;
+                    let acquired_unix_ns = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_nanos();
+                    if self.cancelled.load(Ordering::Acquire) {
+                        break;
                     }
-                    if self.paused() {
+                    camera_ready = self.apply_configure(camera_ready);
+                    if !camera_ready || self.cancelled.load(Ordering::Acquire) || self.paused() {
                         continue;
                     }
                     let now = Instant::now();
@@ -108,10 +118,7 @@ impl<T: FrameSample> AcquisitionWorker<T> {
                         std::mem::take(&mut self.pixels),
                         FrameMeta {
                             sequence,
-                            acquired_unix_ns: SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_nanos(),
+                            acquired_unix_ns,
                             detector: Arc::clone(&self.camera),
                             exposure_seconds: frame_exposure,
                             binning: frame_binning,

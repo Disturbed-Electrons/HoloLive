@@ -303,7 +303,10 @@ impl<T: FrameSample> HoloLiveApp<T> {
                     .show(NoticeLevel::Error, format!("Reconstruction: {error}"));
             }
             PipelineEvent::CameraConfigureFailed(error) => {
-                self.notice.show(NoticeLevel::Error, error);
+                self.notice.show(
+                    NoticeLevel::Error,
+                    format!("Camera Configuration Failed: {error}"),
+                );
             }
             PipelineEvent::SaveFinished(Ok(message)) => {
                 self.notice.show(NoticeLevel::Info, message);
