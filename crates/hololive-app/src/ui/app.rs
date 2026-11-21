@@ -287,7 +287,6 @@ impl<T: FrameSample> HoloLiveApp<T> {
             return;
         }
         self.pipeline.reconstruction(ReconstructionCommand::Save);
-        self.notice.show(NoticeLevel::Info, "Saving PNG…");
     }
 
     pub(crate) fn current_reconstruction(&self) -> Option<hololive_core::ReconstructionInfo> {
@@ -308,12 +307,19 @@ impl<T: FrameSample> HoloLiveApp<T> {
                     format!("Camera Configuration Failed: {error}"),
                 );
             }
+            PipelineEvent::SaveStarted => {
+                self.notice.show(NoticeLevel::Info, "Saving PNG…");
+            }
             PipelineEvent::SaveFinished(Ok(message)) => {
                 self.notice.show(NoticeLevel::Info, message);
             }
             PipelineEvent::SaveFinished(Err(error)) => {
                 self.notice
                     .show(NoticeLevel::Error, format!("Save Failed: {error}"));
+            }
+            PipelineEvent::SaveBusy => {
+                self.notice
+                    .show(NoticeLevel::Warning, "A PNG Export Is Already Running");
             }
             PipelineEvent::SaveUnavailable => {
                 self.notice

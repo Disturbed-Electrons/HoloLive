@@ -335,6 +335,8 @@ fn save_wave<T: Real>(
         return;
     }
     if worker.as_ref().is_some_and(|worker| !worker.is_finished()) {
+        events.publish(PipelineEvent::SaveBusy);
+        repaint();
         return;
     }
     if let Some(previous) = worker.take() {
@@ -350,6 +352,8 @@ fn save_wave<T: Real>(
         thread::Builder::new()
             .name("hololive-export".into())
             .spawn(move || {
+                events.publish(PipelineEvent::SaveStarted);
+                repaint();
                 let result = export::save(&values, width, height, display_mode)
                     .map(|path| format!("Saved {}", path.display()))
                     .map_err(|error| error.to_string());

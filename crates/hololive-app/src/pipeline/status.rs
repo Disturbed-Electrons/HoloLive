@@ -14,7 +14,9 @@ pub enum ConnectionState {
 pub(crate) enum PipelineEvent {
     ReconstructionFailed(CoreError),
     CameraConfigureFailed(String),
+    SaveStarted,
     SaveFinished(Result<String, String>),
+    SaveBusy,
     SaveUnavailable,
 }
 
