@@ -10,11 +10,14 @@ pub(crate) fn keyboard_shortcuts<T: FrameSample>(
     app: &mut HoloLiveApp<T>,
     context: &egui::Context,
 ) {
-    if context.egui_wants_keyboard_input() {
+    if context.text_edit_focused() {
         return;
     }
+    let has_focus = context.egui_wants_keyboard_input();
     let mut settings_changed = false;
-    if pressed(context, Key::Tab) {
+    if !has_focus && pressed(context, Key::Tab) {
+        // egui selects a focus direction before app logic runs.
+        context.memory_mut(|memory| memory.move_focus(egui::FocusDirection::None));
         settings_changed |= app.apply(Action::CycleDisplayMode);
     }
     if pressed(context, Key::A) {
@@ -26,7 +29,7 @@ pub(crate) fn keyboard_shortcuts<T: FrameSample>(
     if pressed(context, Key::F) {
         settings_changed |= app.apply(Action::ToggleTukey);
     }
-    if context.memory(|memory| memory.focused().is_none()) {
+    if !has_focus {
         for (key, region) in [
             (Key::ArrowUp, SearchRegion::Upper),
             (Key::ArrowDown, SearchRegion::Lower),
@@ -56,5 +59,17 @@ pub(crate) fn keyboard_shortcuts<T: FrameSample>(
 }
 
 fn pressed(context: &egui::Context, key: Key) -> bool {
-    context.input(|input| input.key_pressed(key))
+    context.input(|input| {
+        input.events.iter().any(|event| {
+            matches!(
+                event,
+                egui::Event::Key {
+                    key: event_key,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } if *event_key == key && !modifiers.any()
+            )
+        })
+    })
 }

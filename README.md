@@ -142,7 +142,7 @@ Various keyboard shortcuts can be used to adjust parameters during live reconstr
 
 - `L` locks or unlocks the sideband position, preventing it from being automatically recalculated until the lock is released. Disabling the sideband lock also clears the reference hologram.
 - `UP/DOWN/LEFT/RIGHT` changes the sideband search half-plane when the sideband is unlocked.
-- `TAB` switches between the reconstructed phase and amplitude.
+- `TAB` switches between the reconstructed phase and amplitude when no control has keyboard focus. Use `SHIFT+TAB` to start navigating controls and `ESC` to clear focus.
 - `A` cycles between $1$, $2$, $3$, and $4$ as an amplification factor for wrapped phase. It applies only in Phase mode with unwrap disabled.
 - `F` enables or disables the Tukey filter applied to the sideband cut-out before zero padding.
 - `U` enables or disables Arevalillo–Herráez (2002) second-difference phase unwrapping on the reconstructed phase.
