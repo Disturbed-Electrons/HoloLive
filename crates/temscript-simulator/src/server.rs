@@ -100,18 +100,14 @@ impl ServeState {
         }
     }
 
-    fn schedule_next_frame(&mut self, config: &SimulatorConfig) {
+    fn schedule_next_frame(&mut self, config: &SimulatorConfig, requested_at: Instant) {
         let jitter = self
             .jitter_rng
             .random_range(-config.simulation.jitter_fraction..=config.simulation.jitter_fraction);
         let interval = Duration::try_from_secs_f64((1.0 + jitter) / config.simulation.target_fps)
             .expect("simulator timing was validated");
-        let now = Instant::now();
-        self.next_frame_at = self
-            .next_frame_at
-            .checked_add(interval)
-            .filter(|next| *next >= now)
-            .unwrap_or(now);
+        let frame_at = self.next_frame_at.max(requested_at);
+        self.next_frame_at = frame_at.checked_add(interval).unwrap_or(frame_at);
     }
 }
 
@@ -185,8 +181,10 @@ fn handle_acquire(
     let Some(request) = require_simulated_camera(request, camera) else {
         return;
     };
-    let now = Instant::now();
-    if now < state.next_frame_at && !sleep_cancellable(cancelled, state.next_frame_at - now) {
+    let requested_at = Instant::now();
+    if requested_at < state.next_frame_at
+        && !sleep_cancellable(cancelled, state.next_frame_at - requested_at)
+    {
         respond_text(request, 503, "simulator shutting down");
         return;
     }
@@ -207,7 +205,7 @@ fn handle_acquire(
         Err(error) => respond_text(request, 500, &error.to_string()),
     }
     state.sequence += 1;
-    state.schedule_next_frame(config);
+    state.schedule_next_frame(config, requested_at);
 }
 
 fn require_simulated_camera(request: Request, camera: Option<String>) -> Option<Request> {

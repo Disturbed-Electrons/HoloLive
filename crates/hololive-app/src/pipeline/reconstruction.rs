@@ -259,7 +259,6 @@ impl LiveViewPacker {
                     },
                 );
                 levels::pack_rgba_into(&self.spectrum, range, &mut live.rgba);
-                self.spectrum.clear();
                 (width, height, false)
             }
             LiveView::Reconstruction => {
